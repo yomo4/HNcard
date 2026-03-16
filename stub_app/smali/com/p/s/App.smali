@@ -56,7 +56,8 @@
     move-result-object v4
     const/4 v5, 0x0
     aget-byte v4, v4, v5
-    and-int/lit8 v4, v4, 0xff
+    const/16 v5, 0xff
+    and-int v4, v4, v5
     :try_count_end
     .catch Ljava/lang/Throwable; {:try_count_start .. :try_count_end} :default_count
     goto :loop_init
