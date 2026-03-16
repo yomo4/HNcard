@@ -82,16 +82,14 @@ class APKPacker:
             dex_list = self._extract_dex(apk_path)
             logger.info("  DEX файлов: %d", len(dex_list))
 
-            # 2. Генерируем ключ и шифруем каждый DEX
+            # 2. Генерируем ключ, шифруем каждый DEX со своим nonce
             logger.info("[2/7] Шифрование DEX (AES-256-GCM)")
-            key   = hashlib.sha256(secrets.token_bytes(32)).digest()  # 32 байта
-            nonce = secrets.token_bytes(12)                            # 12 байт (base)
+            key = hashlib.sha256(secrets.token_bytes(32)).digest()  # 32 байта
             enc_payloads = []
-            for i, dex_data in enumerate(dex_list):
-                # Инкрементальный nonce для каждого DEX (nonce + i)
-                n_i = (int.from_bytes(nonce, "big") + i).to_bytes(12, "big")
-                ct  = AESGCM(key).encrypt(n_i, dex_data, None)
-                enc_payloads.append(ct)
+            for dex_data in dex_list:
+                nonce = secrets.token_bytes(12)          # уникальный nonce для каждого DEX
+                ct    = AESGCM(key).encrypt(nonce, dex_data, None)
+                enc_payloads.append(nonce + ct)          # nonce(12) + ciphertext
 
             # 3. Декодируем APK через apktool
             logger.info("[3/7] apktool decode")
@@ -113,9 +111,9 @@ class APKPacker:
             logger.info("[5/7] Копирование зашифрованных пейлоадов")
             assets_dir = work / "assets"
             assets_dir.mkdir(exist_ok=True)
-            for i, ct in enumerate(enc_payloads):
-                (assets_dir / f"p{i}.enc").write_bytes(ct)
-            (assets_dir / "k.bin").write_bytes(key + nonce)          # ключ + base nonce
+            for i, payload in enumerate(enc_payloads):
+                (assets_dir / f"p{i}.enc").write_bytes(payload)  # nonce(12) + ciphertext
+            (assets_dir / "k.bin").write_bytes(key)              # только ключ (32 байта)
             (assets_dir / "n.bin").write_bytes(bytes([len(enc_payloads)]))  # счётчик DEX
 
             # 6. Патчим AndroidManifest.xml
