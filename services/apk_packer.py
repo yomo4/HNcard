@@ -100,9 +100,8 @@ class APKPacker:
 
             # 4. Заменяем оригинальный smali на наш стаб
             logger.info("[4/7] Внедрение stub smali")
+            self._remove_original_smali_dirs(work)
             smali_dir = work / "smali"
-            if smali_dir.exists():
-                shutil.rmtree(smali_dir)
             smali_dir.mkdir()
             stub_dst = smali_dir / "com" / "p" / "s"
             shutil.copytree(str(STUB_SMALI / "com" / "p" / "s"), str(stub_dst))
@@ -116,9 +115,15 @@ class APKPacker:
             (assets_dir / "k.bin").write_bytes(key)              # только ключ (32 байта)
             (assets_dir / "n.bin").write_bytes(bytes([len(enc_payloads)]))  # счётчик DEX
 
-            # 6. Патчим AndroidManifest.xml
+            # 6. Патчим AndroidManifest.xml (сохраняем оригинальный Application)
             logger.info("[6/7] Патч AndroidManifest.xml")
-            self._patch_manifest(work / "AndroidManifest.xml")
+            orig_app = self._patch_manifest(work / "AndroidManifest.xml")
+            if orig_app:
+                # Сохраняем имя оригинального Application в assets/a.bin
+                (assets_dir / "a.bin").write_bytes(orig_app.encode("utf-8"))
+                logger.info("  Оригинальный Application сохранён: %s", orig_app)
+            else:
+                logger.info("  Оригинального Application нет")
 
             # 7. Пересборка
             logger.info("[7/7] apktool build → zipalign → apksigner")
@@ -158,12 +163,28 @@ class APKPacker:
             )
             for name in names:
                 dex_files.append(zf.read(name))
+        if not dex_files:
+            raise RuntimeError(f"В APK не найдено ни одного classes*.dex: {apk_path}")
         return dex_files
 
-    def _patch_manifest(self, manifest_path: Path) -> None:
+    def _remove_original_smali_dirs(self, work_dir: Path) -> None:
+        for entry in work_dir.iterdir():
+            if not entry.is_dir():
+                continue
+            if entry.name == "smali" or entry.name.startswith("smali_classes"):
+                shutil.rmtree(entry)
+
+    def _patch_manifest(self, manifest_path: Path) -> str | None:
+        """Патчит манифест. Возвращает оригинальное имя Application класса (или None)."""
         content = manifest_path.read_text(encoding="utf-8")
         stub_class = "com.p.s.App"
-        if re.search(r'<application[^>]+android:name=', content):
+        orig_app = None
+
+        m = re.search(r'<application[^>]+android:name="([^"]+)"', content)
+        if m:
+            orig_app = m.group(1)
+            if orig_app == stub_class:
+                orig_app = None  # уже наш стаб, не сохраняем
             content = re.sub(
                 r'(<application[^>]+)android:name="[^"]*"',
                 fr'\1android:name="{stub_class}"',
@@ -171,6 +192,8 @@ class APKPacker:
             )
         else:
             content = re.sub(r'<application', f'<application android:name="{stub_class}"', content, count=1)
+
         manifest_path.write_text(content, encoding="utf-8")
-        logger.info("  Manifest patched → %s", stub_class)
+        logger.info("  Manifest patched → %s (orig: %s)", stub_class, orig_app or "none")
+        return orig_app
 
