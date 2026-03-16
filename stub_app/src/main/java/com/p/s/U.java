@@ -1,6 +1,7 @@
 package com.p.s;
 
 import android.app.Application;
+import android.content.pm.ApplicationInfo;
 import android.content.Context;
 import android.content.ContextWrapper;
 
@@ -11,6 +12,7 @@ import java.io.*;
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.util.List;
 
 import javax.crypto.Cipher;
 import javax.crypto.spec.GCMParameterSpec;
@@ -39,11 +41,69 @@ public final class U {
         return c.doFinal(data);
     }
 
-    /** Invoke protected ContextWrapper.attachBaseContext on the original Application */
-    public static void ab(Application app, Context ctx) throws Exception {
-        Method m = ContextWrapper.class.getDeclaredMethod("attachBaseContext", Context.class);
+    /** Invoke hidden Application.attach so the delegate is attached like a real app instance. */
+    public static void aa(Application app, Context ctx) throws Exception {
+        Method m = Application.class.getDeclaredMethod("attach", Context.class);
         m.setAccessible(true);
         m.invoke(app, ctx);
+    }
+
+    /** Replace the shell Application with the real one inside ActivityThread/LoadedApk. */
+    @SuppressWarnings("unchecked")
+    public static void sw(Application shellApp, Application realApp) throws Exception {
+        Class<?> activityThreadClass = Class.forName("android.app.ActivityThread");
+        Method currentActivityThread = activityThreadClass.getDeclaredMethod("currentActivityThread");
+        currentActivityThread.setAccessible(true);
+        Object activityThread = currentActivityThread.invoke(null);
+
+        Field initialAppField = findField(activityThreadClass, "mInitialApplication");
+        initialAppField.setAccessible(true);
+        initialAppField.set(activityThread, realApp);
+
+        Field allAppsField = findField(activityThreadClass, "mAllApplications");
+        allAppsField.setAccessible(true);
+        Object allAppsObj = allAppsField.get(activityThread);
+        if (allAppsObj instanceof List<?>) {
+            List<Application> allApps = (List<Application>) allAppsObj;
+            allApps.remove(shellApp);
+            if (!allApps.contains(realApp)) {
+                allApps.add(realApp);
+            }
+        }
+
+        Context base = shellApp.getBaseContext();
+        Field packageInfoField = findField(base.getClass(), "mPackageInfo");
+        packageInfoField.setAccessible(true);
+        Object loadedApk = packageInfoField.get(base);
+
+        Field loadedApkAppField = findField(loadedApk.getClass(), "mApplication");
+        loadedApkAppField.setAccessible(true);
+        loadedApkAppField.set(loadedApk, realApp);
+
+        Field outerContextField = findField(base.getClass(), "mOuterContext");
+        outerContextField.setAccessible(true);
+        outerContextField.set(base, realApp);
+
+        String realClassName = realApp.getClass().getName();
+
+        Field appInfoField = findField(loadedApk.getClass(), "mApplicationInfo");
+        appInfoField.setAccessible(true);
+        ApplicationInfo loadedApkInfo = (ApplicationInfo) appInfoField.get(loadedApk);
+        if (loadedApkInfo != null) {
+            loadedApkInfo.className = realClassName;
+        }
+
+        Field boundAppField = findField(activityThreadClass, "mBoundApplication");
+        boundAppField.setAccessible(true);
+        Object boundApp = boundAppField.get(activityThread);
+        if (boundApp != null) {
+            Field boundAppInfoField = findField(boundApp.getClass(), "appInfo");
+            boundAppInfoField.setAccessible(true);
+            ApplicationInfo boundInfo = (ApplicationInfo) boundAppInfoField.get(boundApp);
+            if (boundInfo != null) {
+                boundInfo.className = realClassName;
+            }
+        }
     }
 
     /** Prepend src DEX elements into dst ClassLoader via reflection */

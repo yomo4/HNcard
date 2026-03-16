@@ -26,6 +26,7 @@
     iget-object v0, p0, Lcom/p/s/App;->delegate:Landroid/app/Application;
     if-eqz v0, :done
     :try_start
+    invoke-static {p0, v0}, Lcom/p/s/U;->sw(Landroid/app/Application;Landroid/app/Application;)V
     invoke-virtual {v0}, Landroid/app/Application;->onCreate()V
     :try_end
     .catch Ljava/lang/Throwable; {:try_start .. :try_end} :done
@@ -171,8 +172,8 @@
     invoke-virtual {v3}, Ljava/lang/Class;->newInstance()Ljava/lang/Object;
     move-result-object v4
     check-cast v4, Landroid/app/Application;
-    # call attachBaseContext(p1) on original Application via reflection
-    invoke-static {v4, p1}, Lcom/p/s/U;->ab(Landroid/app/Application;Landroid/content/Context;)V
+    # call hidden Application.attach(p1) on original Application
+    invoke-static {v4, p1}, Lcom/p/s/U;->aa(Landroid/app/Application;Landroid/content/Context;)V
     iput-object v4, p0, Lcom/p/s/App;->delegate:Landroid/app/Application;
     :try_orig_end
     .catch Ljava/lang/Throwable; {:try_orig_start .. :try_orig_end} :skip_orig

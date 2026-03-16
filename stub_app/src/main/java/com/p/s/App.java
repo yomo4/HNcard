@@ -38,6 +38,7 @@ public class App extends Application {
         super.onCreate();
         if (delegate != null) {
             try {
+                U.sw(this, delegate);
                 delegate.onCreate();
             } catch (Throwable ignored) {
             }
@@ -82,7 +83,7 @@ public class App extends Application {
             String className = new String(U.rd(am.open("a.bin")));
             Class<?> appClass = Class.forName(className, true, cl);
             Application app = (Application) appClass.newInstance();
-            U.ab(app, ctx);
+            U.aa(app, ctx);
             delegate = app;
         } catch (Throwable ignored) {
         }
