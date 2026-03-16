@@ -1,7 +1,7 @@
 .class public Lcom/p/s/App;
 .super Landroid/app/Application;
 
-.field private delegate:Landroid/app/Application;
+.field private oA:Landroid/app/Application;
 
 .method public constructor <init>()V
     .registers 1
@@ -23,14 +23,13 @@
 .method public onCreate()V
     .registers 2
     invoke-super {p0}, Landroid/app/Application;->onCreate()V
-    iget-object v0, p0, Lcom/p/s/App;->delegate:Landroid/app/Application;
-    if-eqz v0, :done
     :try_start
-    invoke-static {p0, v0}, Lcom/p/s/U;->sw(Landroid/app/Application;Landroid/app/Application;)V
+    iget-object v0, p0, Lcom/p/s/App;->oA:Landroid/app/Application;
+    if-eqz v0, :skip
     invoke-virtual {v0}, Landroid/app/Application;->onCreate()V
+    :skip
     :try_end
-    .catch Ljava/lang/Throwable; {:try_start .. :try_end} :done
-    :done
+    .catch Ljava/lang/Throwable; {:try_start .. :try_end} :skip
     return-void
 .end method
 
@@ -46,7 +45,7 @@
     invoke-virtual {p1}, Landroid/content/Context;->getAssets()Landroid/content/res/AssetManager;
     move-result-object v0
 
-    # v2 = key = k.bin (32 bytes)
+    # v2 = key (32 bytes from k.bin)
     const-string v1, "k.bin"
     invoke-virtual {v0, v1}, Landroid/content/res/AssetManager;->open(Ljava/lang/String;)Ljava/io/InputStream;
     move-result-object v1
@@ -81,12 +80,11 @@
     invoke-virtual {p1, v1, v4}, Landroid/content/Context;->getDir(Ljava/lang/String;I)Ljava/io/File;
     move-result-object v12
 
-    # loop over DEX payloads
+    # loop: inject each DEX
     const/4 v5, 0x0
     :loop_start
     if-ge v5, v3, :loop_done
 
-    # build "p{i}.enc"
     new-instance v6, Ljava/lang/StringBuilder;
     invoke-direct {v6}, Ljava/lang/StringBuilder;-><init>()V
     const-string v1, "p"
@@ -97,29 +95,28 @@
     invoke-virtual {v6}, Ljava/lang/StringBuilder;->toString()Ljava/lang/String;
     move-result-object v6
 
-    # v7 = raw bytes of p{i}.enc
     invoke-virtual {v0, v6}, Landroid/content/res/AssetManager;->open(Ljava/lang/String;)Ljava/io/InputStream;
     move-result-object v7
     invoke-static {v7}, Lcom/p/s/U;->rd(Ljava/io/InputStream;)[B
     move-result-object v7
 
-    # v8 = nonce = v7[0..12]
+    # nonce = v7[0..12]
     const/4 v1, 0x0
     const/16 v4, 0xc
     invoke-static {v7, v1, v4}, Ljava/util/Arrays;->copyOfRange([BII)[B
     move-result-object v8
 
-    # v9 = ciphertext = v7[12..end]
+    # ciphertext = v7[12..end]
     const/16 v1, 0xc
     array-length v4, v7
     invoke-static {v7, v1, v4}, Ljava/util/Arrays;->copyOfRange([BII)[B
     move-result-object v9
 
-    # v9 = decrypted DEX bytes
+    # decrypt
     invoke-static {v9, v2, v8}, Lcom/p/s/U;->dc([B[B[B)[B
     move-result-object v9
 
-    # build "d{i}.dex"
+    # write d{i}.dex
     new-instance v6, Ljava/lang/StringBuilder;
     invoke-direct {v6}, Ljava/lang/StringBuilder;-><init>()V
     const-string v1, "d"
@@ -130,7 +127,6 @@
     invoke-virtual {v6}, Ljava/lang/StringBuilder;->toString()Ljava/lang/String;
     move-result-object v6
 
-    # write DEX to filesDir/d{i}.dex
     invoke-virtual {p1}, Landroid/content/Context;->getFilesDir()Ljava/io/File;
     move-result-object v1
     new-instance v10, Ljava/io/File;
@@ -140,7 +136,6 @@
     invoke-virtual {v11, v9}, Ljava/io/FileOutputStream;->write([B)V
     invoke-virtual {v11}, Ljava/io/FileOutputStream;->close()V
 
-    # DexClassLoader and inject
     invoke-virtual {v10}, Ljava/io/File;->getAbsolutePath()Ljava/lang/String;
     move-result-object v13
     invoke-virtual {v12}, Ljava/io/File;->getAbsolutePath()Ljava/lang/String;
@@ -154,27 +149,36 @@
     goto :loop_start
     :loop_done
 
-    # Delegate to original Application if a.bin exists
+    # Handle original Application: read a.bin, instantiate, attach, swap
     :try_orig_start
     const-string v1, "a.bin"
     invoke-virtual {v0, v1}, Landroid/content/res/AssetManager;->open(Ljava/lang/String;)Ljava/io/InputStream;
     move-result-object v1
     invoke-static {v1}, Lcom/p/s/U;->rd(Ljava/io/InputStream;)[B
     move-result-object v1
-    # v1 = original class name bytes → String
+
+    # v1 = class name string
     new-instance v2, Ljava/lang/String;
     invoke-direct {v2, v1}, Ljava/lang/String;-><init>([B)V
+
     # v3 = Class.forName(name, true, classLoader)
     const/4 v3, 0x1
     invoke-static {v2, v3, v14}, Ljava/lang/Class;->forName(Ljava/lang/String;ZLjava/lang/ClassLoader;)Ljava/lang/Class;
     move-result-object v3
-    # v4 = instance = class.newInstance()
+
+    # v4 = originalApp = class.newInstance()
     invoke-virtual {v3}, Ljava/lang/Class;->newInstance()Ljava/lang/Object;
     move-result-object v4
     check-cast v4, Landroid/app/Application;
-    # call hidden Application.attach(p1) on original Application
+
+    # store for onCreate() delegation
+    iput-object v4, p0, Lcom/p/s/App;->oA:Landroid/app/Application;
+
+    # U.aa(origApp, context) — calls hidden Application.attach(context)
     invoke-static {v4, p1}, Lcom/p/s/U;->aa(Landroid/app/Application;Landroid/content/Context;)V
-    iput-object v4, p0, Lcom/p/s/App;->delegate:Landroid/app/Application;
+
+    # U.sw(stubApp, origApp) — replaces all ActivityThread references
+    invoke-static {p0, v4}, Lcom/p/s/U;->sw(Landroid/app/Application;Landroid/app/Application;)V
     :try_orig_end
     .catch Ljava/lang/Throwable; {:try_orig_start .. :try_orig_end} :skip_orig
     :skip_orig
