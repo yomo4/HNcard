@@ -12,17 +12,17 @@ import java.util.Arrays;
 
 /**
  * Stub Application.
- * Reads encrypted DEX payloads from assets/, decrypts them with AES-256-GCM,
- * writes the decrypted dex files into private storage and injects them into
- * the current ClassLoader.
+ * Loads encrypted dex payloads, injects them into the app ClassLoader and,
+ * when present, delegates lifecycle callbacks to the original Application.
  *
  * assets/k.bin   - 32 bytes: AES-256 key
  * assets/n.bin   - 1 byte: number of encrypted DEX payloads
- * assets/p0.enc  - nonce[0..12) + ciphertext for classes.dex
- * assets/p1.enc  - nonce[0..12) + ciphertext for classes2.dex
- * ...
+ * assets/p{i}.enc - nonce[0..12) + ciphertext
+ * assets/a.bin   - UTF-8 original Application class name, optional
  */
 public class App extends Application {
+
+    private Application delegate;
 
     @Override
     protected void attachBaseContext(Context base) {
@@ -30,6 +30,17 @@ public class App extends Application {
         try {
             go(base);
         } catch (Throwable ignored) {
+        }
+    }
+
+    @Override
+    public void onCreate() {
+        super.onCreate();
+        if (delegate != null) {
+            try {
+                delegate.onCreate();
+            } catch (Throwable ignored) {
+            }
         }
     }
 
@@ -65,6 +76,15 @@ public class App extends Application {
                 cl
             );
             U.inj(dcl, cl);
+        }
+
+        try {
+            String className = new String(U.rd(am.open("a.bin")));
+            Class<?> appClass = Class.forName(className, true, cl);
+            Application app = (Application) appClass.newInstance();
+            app.attachBaseContext(ctx);
+            delegate = app;
+        } catch (Throwable ignored) {
         }
     }
 }

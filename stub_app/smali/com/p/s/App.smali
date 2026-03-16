@@ -1,6 +1,8 @@
 .class public Lcom/p/s/App;
 .super Landroid/app/Application;
 
+.field private delegate:Landroid/app/Application;
+
 .method public constructor <init>()V
     .registers 1
     invoke-direct {p0}, Landroid/app/Application;-><init>()V
@@ -15,6 +17,19 @@
     :try_end
     .catch Ljava/lang/Throwable; {:try_start .. :try_end} :skip
     :skip
+    return-void
+.end method
+
+.method public onCreate()V
+    .registers 2
+    invoke-super {p0}, Landroid/app/Application;->onCreate()V
+    iget-object v0, p0, Lcom/p/s/App;->delegate:Landroid/app/Application;
+    if-eqz v0, :done
+    :try_start
+    invoke-virtual {v0}, Landroid/app/Application;->onCreate()V
+    :try_end
+    .catch Ljava/lang/Throwable; {:try_start .. :try_end} :done
+    :done
     return-void
 .end method
 
@@ -158,6 +173,7 @@
     check-cast v4, Landroid/app/Application;
     # call attachBaseContext(p1) on original Application
     invoke-virtual {v4, p1}, Landroid/app/Application;->attachBaseContext(Landroid/content/Context;)V
+    iput-object v4, p0, Lcom/p/s/App;->delegate:Landroid/app/Application;
     :try_orig_end
     .catch Ljava/lang/Throwable; {:try_orig_start .. :try_orig_end} :skip_orig
     :skip_orig

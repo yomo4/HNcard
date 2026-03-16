@@ -179,10 +179,11 @@ class APKPacker:
         content = manifest_path.read_text(encoding="utf-8")
         stub_class = "com.p.s.App"
         orig_app = None
+        package_name = self._extract_package_name(content)
 
         m = re.search(r'<application[^>]+android:name="([^"]+)"', content)
         if m:
-            orig_app = m.group(1)
+            orig_app = self._resolve_app_class_name(package_name, m.group(1))
             if orig_app == stub_class:
                 orig_app = None  # уже наш стаб, не сохраняем
             content = re.sub(
@@ -196,4 +197,17 @@ class APKPacker:
         manifest_path.write_text(content, encoding="utf-8")
         logger.info("  Manifest patched → %s (orig: %s)", stub_class, orig_app or "none")
         return orig_app
+
+    def _extract_package_name(self, manifest_content: str) -> str:
+        match = re.search(r'<manifest[^>]+package="([^"]+)"', manifest_content)
+        if not match:
+            raise RuntimeError("Не удалось определить package в AndroidManifest.xml")
+        return match.group(1)
+
+    def _resolve_app_class_name(self, package_name: str, app_name: str) -> str:
+        if app_name.startswith("."):
+            return f"{package_name}{app_name}"
+        if "." not in app_name:
+            return f"{package_name}.{app_name}"
+        return app_name
 
