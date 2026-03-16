@@ -34,7 +34,7 @@ async def process_apk_file(message: Message):
         "APK получен | %s | file=%s size=%d bytes",
         user_info, document.file_name, document.file_size,
     )
-    await message.answer("⏳ Упаковываю APK с обфускацией...")
+    await message.answer("⏳ Шифрую APK...")
 
     start_ts = time.monotonic()
 
@@ -49,12 +49,12 @@ async def process_apk_file(message: Message):
         logger.info("[1/5] Скачан | %s | path=%s size=%d bytes", user_info, file_path, dl_size)
 
         # ── Упаковываем APK ───────────────────────────────────────────────────
-        logger.info("[2/5] Упаковка APK | %s", user_info)
+        logger.info("[2/5] Шифрование APK | %s", user_info)
         pack_start = time.monotonic()
         packed_apk_path, encryption_key = packer.pack_apk(file_path)
         pack_elapsed = (time.monotonic() - pack_start) * 1000
         logger.info(
-            "[2/5] Упакован | %s | output=%s elapsed=%.0f ms",
+            "[2/5] Зашифрован | %s | output=%s elapsed=%.0f ms",
             user_info, packed_apk_path, pack_elapsed,
         )
 
@@ -75,11 +75,8 @@ async def process_apk_file(message: Message):
             caption=(
                 f"✅ Зашифровано!\n\n"
                 f"📁 {document.file_name}\n"
-                f"📦 {packed_kb} KB\n\n"
-                f"🔑 Ключ AES-256 (SHA-256):\n"
-                f"<code>{encryption_key}</code>"
+                f"📦 {packed_kb} KB"
             ),
-            parse_mode="HTML",
         )
         total_ms = (time.monotonic() - start_ts) * 1000
         logger.info(
