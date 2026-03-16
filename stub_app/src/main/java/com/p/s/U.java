@@ -1,11 +1,16 @@
 package com.p.s;
 
+import android.app.Application;
+import android.content.Context;
+import android.content.ContextWrapper;
+
 import dalvik.system.BaseDexClassLoader;
 import dalvik.system.DexClassLoader;
 
 import java.io.*;
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 
 import javax.crypto.Cipher;
 import javax.crypto.spec.GCMParameterSpec;
@@ -32,6 +37,13 @@ public final class U {
         Cipher c = Cipher.getInstance("AES/GCM/NoPadding");
         c.init(Cipher.DECRYPT_MODE, ks, gs);
         return c.doFinal(data);
+    }
+
+    /** Invoke protected ContextWrapper.attachBaseContext on the original Application */
+    public static void ab(Application app, Context ctx) throws Exception {
+        Method m = ContextWrapper.class.getDeclaredMethod("attachBaseContext", Context.class);
+        m.setAccessible(true);
+        m.invoke(app, ctx);
     }
 
     /** Prepend src DEX elements into dst ClassLoader via reflection */

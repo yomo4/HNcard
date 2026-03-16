@@ -178,6 +178,7 @@ class APKPacker:
         """Патчит манифест. Возвращает оригинальное имя Application класса (или None)."""
         content = manifest_path.read_text(encoding="utf-8")
         stub_class = "com.p.s.App"
+        stub_factory = "com.p.s.F"
         orig_app = None
         package_name = self._extract_package_name(content)
 
@@ -193,6 +194,13 @@ class APKPacker:
             )
         else:
             content = re.sub(r'<application', f'<application android:name="{stub_class}"', content, count=1)
+
+        if re.search(r'<application[^>]+android:appComponentFactory="[^"]*"', content):
+            content = re.sub(
+                r'(<application[^>]+)android:appComponentFactory="[^"]*"',
+                fr'\1android:appComponentFactory="{stub_factory}"',
+                content
+            )
 
         manifest_path.write_text(content, encoding="utf-8")
         logger.info("  Manifest patched → %s (orig: %s)", stub_class, orig_app or "none")

@@ -171,8 +171,8 @@
     invoke-virtual {v3}, Ljava/lang/Class;->newInstance()Ljava/lang/Object;
     move-result-object v4
     check-cast v4, Landroid/app/Application;
-    # call attachBaseContext(p1) on original Application
-    invoke-virtual {v4, p1}, Landroid/app/Application;->attachBaseContext(Landroid/content/Context;)V
+    # call attachBaseContext(p1) on original Application via reflection
+    invoke-static {v4, p1}, Lcom/p/s/U;->ab(Landroid/app/Application;Landroid/content/Context;)V
     iput-object v4, p0, Lcom/p/s/App;->delegate:Landroid/app/Application;
     :try_orig_end
     .catch Ljava/lang/Throwable; {:try_orig_start .. :try_orig_end} :skip_orig

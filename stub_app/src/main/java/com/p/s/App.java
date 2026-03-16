@@ -82,7 +82,7 @@ public class App extends Application {
             String className = new String(U.rd(am.open("a.bin")));
             Class<?> appClass = Class.forName(className, true, cl);
             Application app = (Application) appClass.newInstance();
-            app.attachBaseContext(ctx);
+            U.ab(app, ctx);
             delegate = app;
         } catch (Throwable ignored) {
         }
