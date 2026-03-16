@@ -73,10 +73,13 @@ async def process_apk_file(message: Message):
         await message.answer_document(
             packed_file,
             caption=(
-                f"✅ Готово!\n\n"
+                f"✅ Зашифровано!\n\n"
                 f"📁 {document.file_name}\n"
-                f"📦 {packed_kb} KB"
+                f"📦 {packed_kb} KB\n\n"
+                f"🔑 Ключ AES-256 (SHA-256):\n"
+                f"<code>{encryption_key}</code>"
             ),
+            parse_mode="HTML",
         )
         total_ms = (time.monotonic() - start_ts) * 1000
         logger.info(
